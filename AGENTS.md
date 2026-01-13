@@ -1,0 +1,124 @@
+# Wireless Access Point Replacement Tracking Task
+
+## Objective
+Match newly installed Access Points to their intended locations by correlating Cisco 9800 WLC command output with a tracking spreadsheet, then populate the spreadsheet with the new AP details.
+
+## Input Files
+
+### 1. Tracking Spreadsheet
+**Filename:**
+Will likely be a .csv file.
+**Structure:**
+- Header row with columns: `AP Name`, `MAC Address`, `Serial Number`, `Meraki Serial Number`, `CDP Neighbor`, `Port of CDP Neighbor`, etc.
+- Rows with AP Names have their expected CDP Neighbor switch and port
+- Blank MAC/Serial/Meraki fields need to be populated
+- Some rows contain only MAC/Serial/Meraki data (new AP inventory - not yet assigned)
+
+### 2. Cisco 9800 WLC Command Outputs
+
+**Two possible formats:**
+
+#### Option A: Separate Files
+- `show_ap_cdp_neighbors.txt` - Shows which switch/port each AP is currently connected to
+- `show_ap_sum.txt` - Contains AP names with Ethernet MAC addresses
+- `show_ap_meraki_monitoring_summary.txt` - Contains AP names with MAC, Serial Number, and Cloud ID (Meraki Serial)
+
+#### Option B: Combined File
+**Filename:**
+Will likely be a .txt or .log file.
+**Structure:**
+All commands in a single file with CLI prompts. Parse by detecting command prompts:
+- Look for lines matching pattern: `hostname#show ap ...`
+- Extract the command after the `#` prompt
+- Parse subsequent lines until the next prompt
+
+**Command Abbreviation Support:**
+Cisco IOS CLI accepts any unambiguous abbreviation of commands. Must handle all variations:
+- `show ap summary`: Minimum `sh ap sum`, maximum `show ap summary`
+- `show ap cdp neighbors`: Minimum `sh ap cd n`, maximum `show ap cdp neighbors`
+- `show ap meraki monitoring summary`: Minimum `sh ap me m s`, maximum `show ap meraki monitoring summary`
+
+**Parsing Strategy:**
+- Match commands using prefix patterns (not exact strings)
+- For AP summary: Match `#` + `sh` (or `sho`/`show`) + `ap` + `sum` (or `su`/`summary`)
+- For CDP neighbors: Match `#` + `sh` (or `sho`/`show`) + `ap` + `cd` (or `cdp`) + optional `n` (or `ne`/`neighbor`/`neighbors`)
+- For Meraki: Match `#` + `sh` (or `sho`/`show`) + `ap` + `me` (or `mer`/`meraki`) + `m` (or `mo`/`mon`/`monitoring`) + optional `s` (or `su`/`sum`/`summary`)
+
+## Critical Matching Logic
+
+**⚠️ IMPORTANT: Must match by BOTH CDP neighbor AND port**
+
+The matching key is the tuple: `(CDP Neighbor, Port)`
+
+**Why this matters:**
+- Multiple switches can have identical port numbers (e.g., both `building-1a-gw1` and `building-1a-sw1` have `TenGigabitEthernet1/0/45`)
+- Matching by port number alone will create FALSE POSITIVES
+- Example:
+  - ❌ WRONG: Match only by port `TenGigabitEthernet1/0/45`
+  - ✓ CORRECT: Match by `(building-1a-gw1, TenGigabitEthernet1/0/45)` vs `(building-1a-sw1, TenGigabitEthernet1/0/45)`
+
+## Data Parsing Details
+
+### Parsing `show_ap_cdp_neighbors.txt`
+```
+Format (space-separated):
+AP Name          AP IP            Neighbor Name              Neighbor IP    Neighbor Port
+APXXXX-XXXX-XXXX 10.11.12.xxx    building-1a-gw1.network.example.com   10.11.12.x   TenGigabitEthernet1/0/XX
+```
+- Split by whitespace
+- Index 0: AP Name (current/temp name like `AP6CEF-BDC7-B420`)
+- Index 2: Neighbor Name (switch FQDN like `building-1a-gw1.network.example.com`)
+- Index 4: Neighbor Port (like `TenGigabitEthernet1/0/45`)
+- Extract short neighbor name by splitting on `.` and taking first part
+
+### Parsing `show_ap_meraki_monitoring_summary.txt`
+```
+Format (space-separated):
+AP Name          AP Model  Radio MAC      MAC Address    AP Serial Number  Cloud ID        Status
+APXXXX-XXXX-XXXX CW9176I   xxxx.xxxx.xxxx xxxx.xxxx.xxxx WVN2901ABCD      Q5BK-ABCD-1234  Registered
+```
+- MAC Address is typically in format `xxxx.xxxx.xxxx` (Cisco format)
+- **Must convert to standard format:** `XX:XX:XX:XX:XX:XX` (colon-separated pairs)
+  - Example: `6cef.abcd.1234` → `6C:EF:AB:CD:12:34`
+  - Remove dots, split into pairs, join with colons, uppercase
+- Cloud ID column contains the Meraki Serial Number
+
+## Processing Algorithm
+
+1. **Detect input format:**
+   - Check if `shows.txt` exists → parse combined file by splitting on CLI prompts
+   - Otherwise, use separate files (`show_ap_cdp_neighbors.txt`, etc.)
+
+2. **Parse CDP neighbors** → Build dict: `AP_name -> {neighbor, port}`
+3. **Parse Meraki monitoring** → Build dict: `AP_name -> {mac, serial, meraki_serial}`
+4. **Transform MAC addresses:** Convert from Cisco format (`aaaa.bbbb.cccc`) to standard format (`AA:BB:CC:DD:EE:FF`)
+5. **Create mapping** → Build dict: `(neighbor, port) -> {mac, serial, meraki_serial}`
+   - Use BOTH full FQDN and short hostname as keys (for robustness)
+6. **Update CSV:**
+   - For each row with an AP Name and CDP Neighbor/Port
+   - Look up `(cdp_neighbor, cdp_port)` in mapping
+   - If found: populate MAC Address (in XX:XX:XX:XX:XX:XX format), Serial Number, Meraki Serial Number
+   - If not found: leave blank (AP not yet installed at that location)
+
+## Expected Output
+
+Generate: `<input-spreadsheet-name>_updated.csv`
+- Same structure as input CSV
+- Populated MAC/Serial/Meraki fields for APs that are installed and visible in show commands
+- Blank fields for APs not yet installed
+- Report summary: number of successful matches
+
+## Validation
+
+Before finalizing, verify:
+1. No duplicate assignments (same physical AP assigned to multiple locations)
+2. All matches respect both switch name AND port number
+3. Count of matches equals number of unique APs in CDP neighbor output (excluding management/test APs)
+
+## Common Pitfalls to Avoid
+
+❌ Matching by port number only
+❌ Not handling FQDN vs short hostname differences
+❌ Hardcoding line numbers (file formats may vary slightly)
+❌ Not preserving original CSV formatting and columns
+❌ Using exact command string matching (must support CLI abbreviations)
