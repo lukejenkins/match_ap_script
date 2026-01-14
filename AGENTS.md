@@ -4,6 +4,17 @@ This document provides centralized operational guidance for all AI agents workin
 
 ## Project Guidelines
 
+### Project Goals
+
+**Primary Goal:** Automate the matching of newly installed Cisco Catalyst 9800 Wireless Controller Access Points to their intended locations by correlating WLC command output with a tracking spreadsheet.
+
+**Secondary Goal:** Optionally generate Cisco 9800 WLC CLI commands for AP configuration:
+1. **Renaming APs** - Generate commands to rename APs from temporary names to permanent names
+2. **Adding APs to Building Groups** - Generate commands to assign APs to appropriate building/site groups
+3. **Setting Geolocation Height** - Generate commands to configure AP height for location accuracy
+
+**Output Format:** Commands should be ready to paste into WLC CLI or save as a configuration script.
+
 ### Documentation Requirements
 
 **1. User Documentation Maintenance**
@@ -69,6 +80,10 @@ Match newly installed Access Points to their intended locations by correlating C
 Will likely be a .csv file.
 **Structure:**
 - Header row with columns: `AP Name`, `MAC Address`, `Serial Number`, `Meraki Serial Number`, `CDP Neighbor`, `Port of CDP Neighbor`, etc.
+- Additional optional columns for CLI command generation:
+  - `Building Group` or `Site Tag` - For building group assignment commands
+  - `Height` or `Geolocation Height` - For height configuration commands
+  - `Location` or `Description` - Additional location information
 - Rows with AP Names have their expected CDP Neighbor switch and port
 - Blank MAC/Serial/Meraki fields need to be populated
 - Some rows contain only MAC/Serial/Meraki data (new AP inventory - not yet assigned)
@@ -161,11 +176,38 @@ APXXXX-XXXX-XXXX CW9176I   xxxx.xxxx.xxxx xxxx.xxxx.xxxx WVN2901ABCD      Q5BK-A
 
 ## Expected Output
 
+### 1. Updated CSV File
 Generate: `<input-spreadsheet-name>_updated.csv`
 - Same structure as input CSV
 - Populated MAC/Serial/Meraki fields for APs that are installed and visible in show commands
 - Blank fields for APs not yet installed
 - Report summary: number of successful matches
+
+### 2. Optional: Cisco 9800 CLI Commands
+When enabled, generate CLI commands file with:
+
+**AP Rename Commands:**
+```
+ap name <temporary-name> rename <permanent-name>
+```
+
+**Building Group Assignment Commands:**
+```
+ap name <ap-name> site-tag <building-group>
+```
+
+**Geolocation Height Configuration:**
+```
+ap name <ap-name> location height <height-value>
+```
+
+**Requirements:**
+- Commands should be in correct Cisco IOS order
+- Include comments for clarity (using `!` prefix)
+- Group commands by type for readability
+- Validate AP names exist before generating commands
+- Output to separate file (e.g., `<input>_commands.txt`)
+- Support dry-run mode to preview without file creation
 
 ## Validation
 
@@ -181,3 +223,17 @@ Before finalizing, verify:
 ❌ Hardcoding line numbers (file formats may vary slightly)
 ❌ Not preserving original CSV formatting and columns
 ❌ Using exact command string matching (must support CLI abbreviations)
+❌ Generating CLI commands for APs that don't exist in WLC output
+❌ Not validating required CSV columns exist before generating commands
+
+## CLI Command Generation Guidelines
+
+When implementing CLI command output feature:
+- Verify the CSV has the required columns for each command type
+- Use temporary AP names from WLC output, target names from CSV
+- Include error handling for missing data
+- Add comments in output file explaining command groups
+- Validate AP names exist before generating rename commands
+- Support enabling/disabling individual command types
+- Allow custom output file path for commands
+- Consider command order and dependencies
