@@ -74,6 +74,16 @@ Generates `<input_filename>_updated.csv` with populated AP details and a summary
 - Python 3.6+
 - Standard library only (no external dependencies)
 
+## AI Disclosure
+
+**Here there be robots!** I *think* they are friendly, but they might just be very good at pretending. You might be a fool if you use this project for anything other than as an example of how silly it can be to use AI to code with.
+
+> This project was developed with the assistance of language models from companies such as OpenAI and Anthropic, which provided suggestions and code snippets to enhance the functionality and efficiency of the tools. The models were used to generate code, documentation, distraction, moral support, moral turpitude, and explanations for various components of the project.
+
+## AI Agents
+
+Operational guidance for all AI agents is centralized in [AGENTS.md](AGENTS.md).
+
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
