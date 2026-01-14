@@ -1,3 +1,62 @@
+# AI Agents Operational Guidance
+
+This document provides centralized operational guidance for all AI agents working with this project.
+
+## Project Guidelines
+
+### Documentation Requirements
+
+**1. User Documentation Maintenance**
+- **README.md**: Keep user-facing documentation comprehensive and up-to-date
+  - Document all features, CLI options, and .env configuration
+  - Provide clear examples for common use cases
+  - Include installation instructions and requirements
+  - Update whenever features are added or changed
+
+- **CLI Help Output**: Maintain `--help` output in sync with README
+  - Use `argparse` with detailed help text for all arguments
+  - Include usage examples in epilog section
+  - Document environment variable alternatives
+  - Keep help text concise but informative
+
+**2. Configuration Priority System**
+
+All features must support multiple configuration methods with this priority order:
+
+**Priority (highest to lowest):**
+1. **CLI Arguments** - Direct command-line flags override everything
+2. **Environment Variables (.env file)** - Default values from .env file
+3. **Hardcoded Defaults** - Sensible defaults or interactive prompts
+
+**Implementation Guidelines:**
+- Every CLI option should have an environment variable equivalent
+- CLI arguments must override .env settings
+- .env settings must override hardcoded defaults
+- Non-optional arguments without defaults should prompt the user for input
+- Use `argparse` `default` parameter to read from `os.getenv()`
+- Make `required=False` when env var provides the value
+
+**Example Pattern:**
+```python
+env_value = os.getenv('ENV_VAR_NAME')
+parser.add_argument('--flag', default=env_value, 
+                    required=not env_value,
+                    help='Description (can be set via ENV_VAR_NAME)')
+```
+
+**3. Environment Configuration Template**
+- **Keep `.env.example` synchronized** with all possible configuration options
+- Every new environment variable must be documented in `.env.example`
+- Include:
+  - Descriptive comments for each variable
+  - Example values showing proper format
+  - Notes about optional vs required settings
+  - Grouping of related variables
+- Review and update `.env.example` whenever adding new features
+- Never commit actual `.env` files (ensure in `.gitignore`)
+
+---
+
 # Wireless Access Point Replacement Tracking Task
 
 ## Objective
