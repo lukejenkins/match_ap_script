@@ -41,19 +41,57 @@ Contains columns like:
 ## Usage
 
 ```bash
-python match_aps.py <tracking_spreadsheet.csv> <wlc_output_file_or_directory>
+python match_aps.py -i INPUT_CSV [options]
 ```
+
+### Required Arguments
+
+- `-i, --input-csv`: Input CSV tracking spreadsheet (required)
+
+### Input File Options
+
+You must provide either:
+- `-c, --combined`: Combined shows.txt file with all show commands
+  
+OR one or both of:
+- `--cdp`: Separate file with `show ap cdp neighbors` output
+- `--meraki`: Separate file with `show ap meraki monitoring summary` output
+
+### Output Options
+
+- `-o, --output-csv`: Output CSV file (default: `<input>_updated.csv`)
+- `--log-dir`: Directory for logs and debug files (default: current directory)
 
 ### Examples
 
-With separate command files:
+**Using combined shows file:**
 ```bash
-python match_aps.py tracking.csv output_files/
+python match_aps.py -c shows.txt -i tracking.csv -o output.csv
 ```
 
-With combined command file:
+**Using separate files:**
 ```bash
-python match_aps.py tracking.csv shows.txt
+python match_aps.py -i tracking.csv -o output.csv \
+  --cdp show_ap_cdp_neighbors.txt \
+  --meraki show_ap_meraki_monitoring_summary.txt
+```
+
+**With custom directories:**
+```bash
+python match_aps.py -c data/shows.txt -i data/tracking.csv \
+  -o results/updated.csv --log-dir logs/
+```
+
+**Minimal example (auto-generates output filename):**
+```bash
+python match_aps.py -c shows.txt -i tracking.csv
+# Output will be: tracking_updated.csv
+```
+
+### Getting Help
+
+```bash
+python match_aps.py --help
 ```
 
 ## Output

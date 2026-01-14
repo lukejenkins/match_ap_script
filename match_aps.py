@@ -4,9 +4,11 @@ Match new APs to old AP locations based on CDP neighbor data.
 Supports both separate files and combined shows.txt format.
 """
 
+import argparse
 import csv
 import os
 import re
+import sys
 
 def convert_mac_format(cisco_mac):
     """Convert Cisco MAC format (aaaa.bbbb.cccc) to standard format (AA:BB:CC:DD:EE:FF).
@@ -134,30 +136,41 @@ def parse_meraki_from_lines(lines):
     
     return meraki_data
 
-def load_data():
+def load_data(combined_file=None, cdp_file=None, meraki_file=None):
     """Load data from either combined or separate files."""
     cdp_data = {}
     meraki_data = {}
     
     # Check for combined file first
-    if os.path.exists('shows.txt'):
-        print("Found shows.txt - parsing combined output")
-        sections = parse_combined_shows('shows.txt')
+    if combined_file and os.path.exists(combined_file):
+        print(f"Parsing combined output from {combined_file}")
+        sections = parse_combined_shows(combined_file)
         cdp_data = parse_cdp_from_lines(sections['cdp_neighbors'])
         meraki_data = parse_meraki_from_lines(sections['meraki_monitoring'])
+    elif combined_file:
+        print(f"ERROR: Combined file {combined_file} not found")
+        sys.exit(1)
     else:
         print("Using separate files")
         # Parse CDP neighbors from separate file
-        if os.path.exists('show_ap_cdp_neighbors.txt'):
-            with open('show_ap_cdp_neighbors.txt', 'r') as f:
+        if cdp_file and os.path.exists(cdp_file):
+            print(f"Reading CDP data from {cdp_file}")
+            with open(cdp_file, 'r') as f:
                 lines = f.readlines()
-            cdp_data = parse_cdp_from_lines(lines[4:11])
+            cdp_data = parse_cdp_from_lines(lines)
+        elif cdp_file:
+            print(f"ERROR: CDP file {cdp_file} not found")
+            sys.exit(1)
         
         # Parse Meraki monitoring from separate file
-        if os.path.exists('show_ap_meraki_monitoring_summary.txt'):
-            with open('show_ap_meraki_monitoring_summary.txt', 'r') as f:
+        if meraki_file and os.path.exists(meraki_file):
+            print(f"Reading Meraki data from {meraki_file}")
+            with open(meraki_file, 'r') as f:
                 lines = f.readlines()
-            meraki_data = parse_meraki_from_lines(lines[8:15])
+            meraki_data = parse_meraki_from_lines(lines)
+        elif meraki_file:
+            print(f"ERROR: Meraki file {meraki_file} not found")
+            sys.exit(1)
     
     return cdp_data, meraki_data
 
@@ -214,11 +227,81 @@ def update_csv(port_to_ap, input_file='input.csv', output_file='input_updated.cs
     
     return output_file, rows
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Match new APs to old AP locations based on CDP neighbor data',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Using combined shows file:
+  %(prog)s -c shows.txt -i tracking.csv -o output.csv
+
+  # Using separate files:
+  %(prog)s -i tracking.csv -o output.csv \\
+    --cdp show_ap_cdp_neighbors.txt \\
+    --meraki show_ap_meraki_monitoring_summary.txt
+
+  # With custom log directory:
+  %(prog)s -c data/shows.txt -i data/tracking.csv \\
+    -o results/updated.csv --log-dir logs/
+        """
+    )
+    
+    # Input files
+    input_group = parser.add_argument_group('input files')
+    input_group.add_argument('-c', '--combined',
+                            help='Combined shows.txt file with all show commands')
+    input_group.add_argument('--cdp',
+                            help='Separate file: show ap cdp neighbors output')
+    input_group.add_argument('--meraki',
+                            help='Separate file: show ap meraki monitoring summary output')
+    input_group.add_argument('-i', '--input-csv', required=True,
+                            help='Input CSV tracking spreadsheet (required)')
+    
+    # Output files
+    output_group = parser.add_argument_group('output files')
+    output_group.add_argument('-o', '--output-csv',
+                             help='Output CSV file (default: <input>_updated.csv)')
+    output_group.add_argument('--log-dir',
+                             help='Directory for logs and debug files (default: current directory)')
+    
+    args = parser.parse_args()
+    
+    # Validation
+    if not args.combined and not (args.cdp or args.meraki):
+        parser.error('Must provide either --combined or at least one of --cdp/--meraki')
+    
+    if args.combined and (args.cdp or args.meraki):
+        parser.error('Cannot use both --combined and separate files (--cdp/--meraki)')
+    
+    # Set default output file if not provided
+    if not args.output_csv:
+        base_name = os.path.splitext(args.input_csv)[0]
+        args.output_csv = f"{base_name}_updated.csv"
+    
+    # Create log directory if specified
+    if args.log_dir:
+        os.makedirs(args.log_dir, exist_ok=True)
+    
+    return args
+
 def main():
+    args = parse_args()
+    
     print("=== AP Replacement Matching Tool ===\n")
     
+    # Verify input CSV exists
+    if not os.path.exists(args.input_csv):
+        print(f"ERROR: Input CSV file not found: {args.input_csv}")
+        sys.exit(1)
+    
     # Load data
-    cdp_data, meraki_data = load_data()
+    cdp_data, meraki_data = load_data(
+        combined_file=args.combined,
+        cdp_file=args.cdp,
+        meraki_file=args.meraki
+    )
     print(f"Loaded {len(cdp_data)} APs from CDP neighbors")
     print(f"Loaded {len(meraki_data)} APs from Meraki monitoring\n")
     
@@ -226,7 +309,7 @@ def main():
     port_to_ap = create_port_mapping(cdp_data, meraki_data)
     
     # Update CSV
-    output_file, rows = update_csv(port_to_ap)
+    output_file, rows = update_csv(port_to_ap, args.input_csv, args.output_csv)
     
     # Count matches
     matched_count = 0
@@ -242,6 +325,29 @@ def main():
     for row in rows[1:20]:  # Show first 20
         if len(row) >= 9 and row[0] and row[1]:
             print(f"  {row[0]:15} → {row[1]:17} {row[2]:15} {row[3]}")
+    
+    # Save debug log if log-dir specified
+    if args.log_dir:
+        log_file = os.path.join(args.log_dir, 'debug.log')
+        with open(log_file, 'w') as f:
+            f.write(f"=== AP Matching Debug Log ===\n\n")
+            f.write(f"Input files:\n")
+            f.write(f"  CSV: {args.input_csv}\n")
+            f.write(f"  Combined: {args.combined}\n")
+            f.write(f"  CDP: {args.cdp}\n")
+            f.write(f"  Meraki: {args.meraki}\n\n")
+            f.write(f"Output file: {args.output_csv}\n\n")
+            f.write(f"CDP data ({len(cdp_data)} APs):\n")
+            for ap, info in cdp_data.items():
+                f.write(f"  {ap}: {info}\n")
+            f.write(f"\nMeraki data ({len(meraki_data)} APs):\n")
+            for ap, info in meraki_data.items():
+                f.write(f"  {ap}: {info}\n")
+            f.write(f"\nPort mapping ({len(port_to_ap)} entries):\n")
+            for key, value in port_to_ap.items():
+                f.write(f"  {key}: {value}\n")
+            f.write(f"\nMatched {matched_count} APs\n")
+        print(f"✓ Debug log saved to {log_file}")
 
 if __name__ == '__main__':
     main()
