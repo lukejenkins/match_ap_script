@@ -1,0 +1,5 @@
+# Python dependencies for AP Replacement Matching Script
+
+# Optional: For .env file support
+# The script will work without this, but .env support requires it
+python-dotenv>=1.0.0

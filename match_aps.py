@@ -2,6 +2,7 @@
 """
 Match new APs to old AP locations based on CDP neighbor data.
 Supports both separate files and combined shows.txt format.
+Supports loading defaults from .env file.
 """
 
 import argparse
@@ -9,6 +10,13 @@ import csv
 import os
 import re
 import sys
+
+# Try to import python-dotenv, but don't fail if not installed
+try:
+    from dotenv import load_dotenv
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
 
 def convert_mac_format(cisco_mac):
     """Convert Cisco MAC format (aaaa.bbbb.cccc) to standard format (AA:BB:CC:DD:EE:FF).
@@ -228,7 +236,19 @@ def update_csv(port_to_ap, input_file='input.csv', output_file='input_updated.cs
     return output_file, rows
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command line arguments with .env file support."""
+    # Load .env file if available
+    if DOTENV_AVAILABLE:
+        load_dotenv()
+    
+    # Get defaults from environment variables
+    env_combined = os.getenv('COMBINED_FILE')
+    env_cdp = os.getenv('CDP_FILE')
+    env_meraki = os.getenv('MERAKI_FILE')
+    env_input_csv = os.getenv('INPUT_CSV')
+    env_output_csv = os.getenv('OUTPUT_CSV')
+    env_log_dir = os.getenv('LOG_DIR')
+    
     parser = argparse.ArgumentParser(
         description='Match new APs to old AP locations based on CDP neighbor data',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -245,25 +265,37 @@ Examples:
   # With custom log directory:
   %(prog)s -c data/shows.txt -i data/tracking.csv \\
     -o results/updated.csv --log-dir logs/
+
+  # Using .env file for defaults:
+  %(prog)s  # Reads all settings from .env file
+
+Environment Variables (via .env file):
+  COMBINED_FILE    - Combined shows file path
+  CDP_FILE         - CDP neighbors file path
+  MERAKI_FILE      - Meraki monitoring file path
+  INPUT_CSV        - Input tracking spreadsheet path
+  OUTPUT_CSV       - Output CSV file path
+  LOG_DIR          - Log directory path
         """
     )
     
     # Input files
     input_group = parser.add_argument_group('input files')
-    input_group.add_argument('-c', '--combined',
+    input_group.add_argument('-c', '--combined', default=env_combined,
                             help='Combined shows.txt file with all show commands')
-    input_group.add_argument('--cdp',
+    input_group.add_argument('--cdp', default=env_cdp,
                             help='Separate file: show ap cdp neighbors output')
-    input_group.add_argument('--meraki',
+    input_group.add_argument('--meraki', default=env_meraki,
                             help='Separate file: show ap meraki monitoring summary output')
-    input_group.add_argument('-i', '--input-csv', required=True,
-                            help='Input CSV tracking spreadsheet (required)')
+    input_group.add_argument('-i', '--input-csv', default=env_input_csv,
+                            required=not env_input_csv,
+                            help='Input CSV tracking spreadsheet (required unless set in .env)')
     
     # Output files
     output_group = parser.add_argument_group('output files')
-    output_group.add_argument('-o', '--output-csv',
+    output_group.add_argument('-o', '--output-csv', default=env_output_csv,
                              help='Output CSV file (default: <input>_updated.csv)')
-    output_group.add_argument('--log-dir',
+    output_group.add_argument('--log-dir', default=env_log_dir,
                              help='Directory for logs and debug files (default: current directory)')
     
     args = parser.parse_args()

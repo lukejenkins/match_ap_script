@@ -88,6 +88,16 @@ python match_aps.py -c shows.txt -i tracking.csv
 # Output will be: tracking_updated.csv
 ```
 
+**Using .env file for configuration:**
+```bash
+# Set up .env file once
+cp .env.example .env
+# Edit .env with your paths
+
+# Then run without arguments
+python match_aps.py
+```
+
 ### Getting Help
 
 ```bash
@@ -106,11 +116,54 @@ Generates `<input_filename>_updated.csv` with populated AP details and a summary
 - **MAC Address Conversion**: Automatically converts Cisco format (`aaaa.bbbb.cccc`) to standard format (`AA:BB:CC:DD:EE:FF`)
 - **Flexible Input**: Supports both separate command files and combined output files
 - **CLI Abbreviation Support**: Handles Cisco IOS CLI command abbreviations (e.g., `sh ap sum`, `show ap summary`)
+- **Environment Configuration**: Support for `.env` files to set default paths and avoid repetitive CLI arguments
+- **Debug Logging**: Optional detailed logging for troubleshooting
 
 ## Requirements
 
 - Python 3.6+
-- Standard library only (no external dependencies)
+- `python-dotenv` (optional, for .env file support)
+
+### Installation
+
+```bash
+# Install optional dependencies
+pip install -r requirements.txt
+```
+
+The script will work without `python-dotenv`, but you won't be able to use `.env` files for configuration.
+
+## Configuration
+
+### Option 1: Environment Variables (.env file)
+
+Create a `.env` file in the project root (copy from `.env.example`):
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your file paths:
+
+```bash
+# Example .env configuration
+COMBINED_FILE=./examples/private/shows.txt
+INPUT_CSV=./examples/private/tracking.csv
+OUTPUT_CSV=./output/updated.csv
+LOG_DIR=./logs/
+```
+
+Then run the script without arguments:
+
+```bash
+python match_aps.py
+```
+
+**Note:** CLI arguments override `.env` settings.
+
+### Option 2: Command Line Arguments
+
+See usage examples below.
 
 ## AI Disclosure
 
