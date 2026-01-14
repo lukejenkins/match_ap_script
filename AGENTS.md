@@ -80,13 +80,11 @@ Match newly installed Access Points to their intended locations by correlating C
 Will likely be a .csv file.
 **Structure:**
 - Header row with columns: `AP Name`, `MAC Address`, `Serial Number`, `Meraki Serial Number`, `CDP Neighbor`, `Port of CDP Neighbor`, etc.
-- Additional optional columns for CLI command generation:
-  - `Building Group` or `Site Tag` - For building group assignment commands
-  - `Height` or `Geolocation Height` - For height configuration commands
-  - `Location` or `Description` - Additional location information
 - Rows with AP Names have their expected CDP Neighbor switch and port
 - Blank MAC/Serial/Meraki fields need to be populated
 - Some rows contain only MAC/Serial/Meraki data (new AP inventory - not yet assigned)
+- **IMPORTANT:** CSV structure must NOT be modified - it's for another system
+- For CLI command generation, use only existing columns or separate configuration
 
 ### 2. Cisco 9800 WLC Command Outputs
 
@@ -190,16 +188,20 @@ When enabled, generate CLI commands file with:
 ```
 ap name <temporary-name> rename <permanent-name>
 ```
+- Temporary name: From WLC output (CDP neighbors data)
+- Permanent name: From CSV `AP Name` column
 
 **Building Group Assignment Commands:**
 ```
 ap name <ap-name> site-tag <building-group>
 ```
+- Building group must be provided via CLI argument, .env variable, or derived from AP name pattern
 
 **Geolocation Height Configuration:**
 ```
 ap name <ap-name> location height <height-value>
 ```
+- Height value must be provided via CLI argument, .env variable, or configuration file
 
 **Requirements:**
 - Commands should be in correct Cisco IOS order
@@ -208,6 +210,7 @@ ap name <ap-name> location height <height-value>
 - Validate AP names exist before generating commands
 - Output to separate file (e.g., `<input>_commands.txt`)
 - Support dry-run mode to preview without file creation
+- **Do NOT modify the CSV structure** - use separate configuration sources for building group and height data
 
 ## Validation
 
@@ -229,6 +232,12 @@ Before finalizing, verify:
 ## CLI Command Generation Guidelines
 
 When implementing CLI command output feature:
+- **Never modify the CSV structure** - it must remain compatible with external systems
+- For building group and height data, use:
+  - CLI arguments (e.g., `--building-group`, `--default-height`)
+  - Environment variables (e.g., `BUILDING_GROUP`, `DEFAULT_HEIGHT`)
+  - Separate configuration file (e.g., JSON/YAML mapping AP names to settings)
+  - Pattern matching on AP names (e.g., `ce-106-ap1` → building `ce-106`, site-tag `CE`)
 - Verify the CSV has the required columns for each command type
 - Use temporary AP names from WLC output, target names from CSV
 - Include error handling for missing data
